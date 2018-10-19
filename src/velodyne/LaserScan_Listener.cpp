@@ -58,14 +58,26 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
 
   ROS_INFO("intensities: \n");
 
-  for(int j = 0; j < data.intensities.size(); j++)
+  for(int i = 0; i < data.intensities.size(); i++)
   {
     std::cout << data.intensities[j] << ", " ;
 
-  }*/   
+  }
  
+  ROS_INFO("angles: \n");
 
-    ROS_INFO("Angulo: \n");
+  for(int i = 0; i < data.ranges.size(); i++)
+  {
+    angle_rad = angle_rad + data.angle_increment;
+    angle_degrees = angle_rad*180/PI;
+    std::cout << angle_degrees << ", " ;
+
+  }
+  angle_rad = data.angle_min;
+  std::cout <<"\n" ;
+  //*/
+
+  //ROS_INFO("angles 2: \n");
 
   for(int i = 0; i < data.ranges.size(); i++)  
   {
@@ -84,6 +96,7 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
 
     std::cout << angle_degrees << ", " ; 
   }
+  //std::cout <<"\n" ;
 
 
 
