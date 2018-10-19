@@ -3,6 +3,8 @@
 #include "sensor_msgs/LaserScan.h"
 #include "std_msgs/Header.h"
 #include "nav_msgs/MapMetaData.h"
+#include "geometry_msgs/Pose.h"
+#include "geometry_msgs/Point.h"
 
 #include "std_msgs/String.h"
 #include <std_msgs/Int8.h>
@@ -16,15 +18,98 @@
 
 #define PI 3.14159274101
 
+nav_msgs::OccupancyGrid generate_Grid_Map(nav_msgs::OccupancyGrid gridMap);
+void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg);
 //-------------------------------------------------------------
+
+ros::Publisher map_pub;
+ros::Subscriber sub;
+
+nav_msgs::OccupancyGrid gridMap;
+
+class Point{
+
+private:
+
+double angle_rad, distancia, x, y;
+
+public:
+
+Point();
+Point(double angle, double dist, double coord_x, double coord_y);
+
+void setAngle_rad(double angle);
+void setDistancia(double dist);
+void setCoord(double coord_x, double coord_y);
+void setPoint(double angle, double dist, double coord_x, double coord_y);
+
+double getAngle_rad();
+double getDistancia();
+double getX();
+double getY();
+
+};
+
+Point::Point(){
+  angle_rad = 0.0;
+  distancia = 0.0;
+  x = 0.0;
+  y = 0.0;
+}
+
+Point::Point(double angle, double dist, double coord_x, double coord_y){
+  angle_rad = angle;
+  distancia = dist;
+  x = coord_x;
+  y = coord_y;
+}
+
+void Point::setAngle_rad(double angle){
+  angle_rad = angle;
+}
+
+void Point::setDistancia(double dist){
+  distancia = dist;
+}
+
+void Point::setCoord(double coord_x, double coord_y){
+  x = coord_x;
+  y = coord_y;
+}
+
+void Point::setPoint(double angle, double dist, double coord_x, double coord_y){
+  Point::setAngle_rad(angle);
+  Point::setDistancia(dist);
+  Point::setCoord(coord_x,coord_y);
+}
+
+double Point::getAngle_rad(){
+  return angle_rad;
+}
+
+double Point::getDistancia(){
+  return distancia;
+}
+
+double Point::getX(){
+  return x;
+}
+
+double Point::getY(){
+  return y;
+}
+
 void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
 {
 
   sensor_msgs::LaserScan data = *msg; // La funcion callback de ROS guarda la data cruda en la memoria, por lo tanto para extraerla hay que apuntar a la direccion de memoria.
+  nav_msgs::OccupancyGrid gridMap_pub;
   double angle_rad = data.angle_min; //angulo minimo en radianes del velodyne (desde donde parte el movimiento de escaneo)
   double angle_degrees = 0.0, dist_x_m = 0.0, dist_y_m = 0.0, distancia = 0.0;
   double angle_rad_v[data.ranges.size()], distancia_v[data.ranges.size()], coord_x_v[data.ranges.size()], coord_y_v[data.ranges.size()];
-  float resolution = 0.01;
+  Point point[data.ranges.size()];
+  //float resolution = 0.01; //gridMap.info.resolution = 0.01;
+
 
   /*
    *La estructura de datos esta comprendida por los siguientes 12 valores, 
@@ -93,20 +178,28 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
 
     angle_rad_v[i] = angle_rad;
     distancia_v[i] = distancia;
-    coord_x_v[i] = dist_x_m/resolution;
-    coord_y_v[i] = dist_y_m/resolution;
+    coord_x_v[i] = dist_x_m/gridMap.info.resolution;
+    coord_y_v[i] = dist_y_m/gridMap.info.resolution;
 
     angle_degrees = angle_rad_v[i]*180/PI;
 
     //std::cout << angle_degrees << ", " ; 
   }
+  //Crear objeto para manipular los atributos y hacer los calculos
+  //Ejecutar occupancy grid aqui en callback
+
+  gridMap_pub = generate_Grid_Map(gridMap);
+  //PUBLICAR
+  map_pub.publish(gridMap_pub);
+
   //std::cout <<"\n" ;
 
 }
 
 //-------------------------------------------------------------
 
-nav_msgs::OccupancyGrid generate_Grid_Map(nav_msgs::OccupancyGrid gridMap){
+nav_msgs::OccupancyGrid generate_Grid_Map(nav_msgs::OccupancyGrid gridMap)
+{
 
   //ROS_INFO("generate_Grid_Map \n");
   /*
@@ -125,6 +218,7 @@ nav_msgs::OccupancyGrid generate_Grid_Map(nav_msgs::OccupancyGrid gridMap){
   return gridMap;
 }
 
+
 int main(int argc, char *argv[])
 {
  
@@ -132,11 +226,14 @@ int main(int argc, char *argv[])
 
   ROS_INFO("Nodo Occupancy_Grid \n");
   
-  nav_msgs::OccupancyGrid gridMap;
+  gridMap.info.origin.position.x = -5;//ver como se asigna un point
+  gridMap.info.origin.position.y = -5;
+  gridMap.info.origin.position.z = 0;
   gridMap.info.resolution = 0.01; // resolution is in meters
   gridMap.info.width = 10;
   gridMap.info.height = 10;
   gridMap.header.frame_id = "map";
+
   std::string arg;
 
   for (int i = 1; i<argc; i++){
@@ -198,12 +295,12 @@ int main(int argc, char *argv[])
   ros::NodeHandle n;
 
   //PUBLICAR
-  ros::Publisher map_pub = n.advertise<nav_msgs::OccupancyGrid>("map",10);
+  map_pub = n.advertise<nav_msgs::OccupancyGrid>("map",10);
 
   //SUBSCRIBIRSE
-  ros::Subscriber sub = n.subscribe("scan", 1000, laserScancallback);
+  sub = n.subscribe("scan", 1000, laserScancallback);
 
-  ros::Rate loop_rate(1.0);
+  ros::Rate loop_rate(10.0);
 
   
   int count = 0;
@@ -227,9 +324,9 @@ int main(int argc, char *argv[])
      */
 
     //ROS_INFO("Iteracion Num: [%d] \n",count);
-    gridMap = generate_Grid_Map(gridMap);
+    //gridMap = generate_Grid_Map(gridMap);
 
-    map_pub.publish(gridMap);
+    //map_pub.publish(gridMap);
     
     ros::spinOnce(); // Aqui se genera la magia
 
