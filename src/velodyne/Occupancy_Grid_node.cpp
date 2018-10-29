@@ -25,9 +25,9 @@ ros::Subscriber sub;
 nav_msgs::OccupancyGrid gridMap;
 
 int assign_points(uint width, uint height, int fila, int columna);
-void bresenhamLine(int x0, int y0, int x1, int y1, std::vector<signed char> &dataProb);
-void bresenhamLine_wiki(int x0, int y0, int x1, int y1, std::vector<signed char> &dataProb);
-nav_msgs::OccupancyGrid generate_Grid_Map(nav_msgs::OccupancyGrid gridMap, std::vector<signed char> dataProb);
+void bresenhamLine(int x0, int y0, int x1, int y1, std::vector<int8_t> &dataProb);
+void bresenhamLine_wiki(int x0, int y0, int x1, int y1, std::vector<int8_t> &dataProb);
+nav_msgs::OccupancyGrid generate_Grid_Map(nav_msgs::OccupancyGrid gridMap, std::vector<int8_t> dataProb);
 void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg);
 //-------------------------------------------------------------
 
@@ -168,7 +168,7 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
   double angle_degrees = 0.0, dist_x_m = 0.0, dist_y_m = 0.0;
   int posX = 0, posY = 0, pos = 0, len = gridMap.info.height*gridMap.info.width, coord_x = 0, coord_y = 0;
   //std::vector<signed char> dataProb;
-  std::vector<signed char> dataProb;
+  std::vector<int8_t> dataProb;
   dataProb.assign(len,50);
   Point point_v[data.ranges.size()];
   Point point;
@@ -249,8 +249,12 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
     point_v[i] = point;
 
     //Analisis del cuadrante
-    if (abs(coord_x) <= gridMap.info.width/2 && abs(coord_y) <= gridMap.info.height/2)
+    if (abs(coord_x) < gridMap.info.width/2 && abs(coord_y) < gridMap.info.height/2)
     {
+      int center_x = gridMap.info.height/2;
+      int center_y = gridMap.info.width/2;
+
+      /*
       if (coord_x >= 0){//Cuadrante 1 o 4
         if(coord_y >= 0){//Primer Cuadrante 
 
@@ -275,12 +279,15 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
           posY = gridMap.info.width/2 + coord_x ;
 
       }
-      
-      int center_x = gridMap.info.height/2;
-      int center_y = gridMap.info.width/2;
+      //*/
+
+      posX = center_x + coord_x;
+      posY = center_y + coord_y;
 
       //bresenhamLine(center_x, center_y, posX, posY, dataProb);
-      //bresenhamLine_wiki(center_x, center_y, posX, posY, dataProb);
+      bresenhamLine_wiki(center_x, center_y, posX, posY, dataProb);
+
+      //bresenhamLine_wiki(center_x, center_y, 75, 75, dataProb);
 
             //Cuadrado interno de prueba 
       /*
@@ -301,13 +308,9 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
       bresenhamLine_wiki(center_x, center_y, 50, 25, dataProb);
       bresenhamLine_wiki(center_x, center_y, 30, 25, dataProb);
       //*/
-
-
       
-
       pos = assign_points(gridMap.info.width, gridMap.info.height, posX, posY);
       dataProb.at(pos-1) = 100;
-
     }
 
 
@@ -320,15 +323,18 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
 
 //-------------------------------------------------------------
 
-int assign_points(uint width, uint height, int fila, int columna)
+int assign_points(uint width, uint height, int columna, int fila)
 {
-  int position = width * (height - fila) + columna;//Posicion en el vector desde abajo a la izquierda en el 3er cuadrante  
+  int position = width * (fila) + columna;
+  //int position = width * (height - fila) + columna;//Posicion en el vector desde abajo a la izquierda en el 3er cuadrante  
+  //std::cout<<"position = "<<position<<"\n";
+  //std::cout<<"coord: x = "<<columna<<", y = "<< fila<<"\n";
   return position;
 
 }
 
 //-------------------------------------------------------------
-void bresenhamLine(int x0, int y0, int x1, int y1, std::vector<signed char> &dataProb){
+void bresenhamLine(int x0, int y0, int x1, int y1, std::vector<int8_t> &dataProb){
   int dx = abs(x1-x0), dx2 = 2*dx;
   int dy = abs(y1-y0), dy2 = 2*dy;
   int i=1, pos;
@@ -427,14 +433,7 @@ void bresenhamLine(int x0, int y0, int x1, int y1, std::vector<signed char> &dat
 }
 
 //-------------------------------------------------------------
-void bresenhamLine_wiki(int x0, int y0, int x1, int y1, std::vector<signed char> &dataProb){
-  
-  /*
-  if(!(x0 < x1)){
-    std::swap(x0,x1);
-    std::swap(y0,y1);
-  }*/
-
+void bresenhamLine_wiki(int x0, int y0, int x1, int y1, std::vector<int8_t> &dataProb){
   int dy = y1-y0; 
   int dx = x1-x0;
   int incXi, incYi, incXr, incYr;
@@ -474,7 +473,6 @@ void bresenhamLine_wiki(int x0, int y0, int x1, int y1, std::vector<signed char>
   int avR = (2 * dy);
   int av = (avR - dx);
   int avI = (av - dx);
-  int count = 1;
 
   // 4  - Bucle para el trazado de las línea.
   do{
@@ -499,12 +497,11 @@ void bresenhamLine_wiki(int x0, int y0, int x1, int y1, std::vector<signed char>
 
   pos = assign_points(gridMap.info.width, gridMap.info.height, xfin, yfin);
   dataProb.at(pos-1) = 100;
-  count++;
 
 }
 
 //-------------------------------------------------------------
-nav_msgs::OccupancyGrid generate_Grid_Map(nav_msgs::OccupancyGrid gridMap, std::vector<signed char> dataProb)
+nav_msgs::OccupancyGrid generate_Grid_Map(nav_msgs::OccupancyGrid gridMap, std::vector<int8_t> dataProb)
 {
   gridMap.data = dataProb; 
   return gridMap;
