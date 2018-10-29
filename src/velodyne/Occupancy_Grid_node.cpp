@@ -26,6 +26,7 @@ nav_msgs::OccupancyGrid gridMap;
 
 int assign_points(uint width, uint height, int fila, int columna);
 void bresenhamLine(int x0, int y0, int x1, int y1, std::vector<signed char> &dataProb);
+void bresenhamLine_wiki(int x0, int y0, int x1, int y1, std::vector<signed char> &dataProb);
 nav_msgs::OccupancyGrid generate_Grid_Map(nav_msgs::OccupancyGrid gridMap, std::vector<signed char> dataProb);
 void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg);
 //-------------------------------------------------------------
@@ -278,7 +279,31 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
       int center_x = gridMap.info.height/2;
       int center_y = gridMap.info.width/2;
 
-      bresenhamLine(center_x, center_y, posX, posY, dataProb);
+      //bresenhamLine(center_x, center_y, posX, posY, dataProb);
+      //bresenhamLine_wiki(center_x, center_y, posX, posY, dataProb);
+
+            //Cuadrado interno de prueba 
+      /*
+      bresenhamLine_wiki(center_x, center_y, 25, 25, dataProb);
+      bresenhamLine_wiki(center_x, center_y, 25, 30, dataProb);
+      bresenhamLine_wiki(center_x, center_y, 25, 50, dataProb);
+      bresenhamLine_wiki(center_x, center_y, 25, 70, dataProb);
+      bresenhamLine_wiki(center_x, center_y, 25, 75, dataProb);
+      bresenhamLine_wiki(center_x, center_y, 30, 75, dataProb);
+      bresenhamLine_wiki(center_x, center_y, 50, 75, dataProb);
+      bresenhamLine_wiki(center_x, center_y, 70, 75, dataProb);
+      bresenhamLine_wiki(center_x, center_y, 75, 75, dataProb);
+      bresenhamLine_wiki(center_x, center_y, 75, 70, dataProb);
+      bresenhamLine_wiki(center_x, center_y, 75, 50, dataProb);
+      bresenhamLine_wiki(center_x, center_y, 75, 30, dataProb);
+      bresenhamLine_wiki(center_x, center_y, 75, 25, dataProb);
+      bresenhamLine_wiki(center_x, center_y, 70, 25, dataProb);
+      bresenhamLine_wiki(center_x, center_y, 50, 25, dataProb);
+      bresenhamLine_wiki(center_x, center_y, 30, 25, dataProb);
+      //*/
+
+
+      
 
       pos = assign_points(gridMap.info.width, gridMap.info.height, posX, posY);
       dataProb.at(pos-1) = 100;
@@ -398,6 +423,83 @@ void bresenhamLine(int x0, int y0, int x1, int y1, std::vector<signed char> &dat
   pos = assign_points(gridMap.info.width, gridMap.info.height, xfin, yfin);
   dataProb.at(pos-1) = 100;
 
+
+}
+
+//-------------------------------------------------------------
+void bresenhamLine_wiki(int x0, int y0, int x1, int y1, std::vector<signed char> &dataProb){
+  
+  /*
+  if(!(x0 < x1)){
+    std::swap(x0,x1);
+    std::swap(y0,y1);
+  }*/
+
+  int dy = y1-y0; 
+  int dx = x1-x0;
+  int incXi, incYi, incXr, incYr;
+  
+  int xini = x0, yini = y0, xfin = x1, yfin = y1;
+  int pos;
+
+  // 1 - Incrementos para las secciones con avance inclinado
+  if(dy >= 0){
+    incYi = 1;
+  }else {
+    incYi = -1;
+    dy = -dy;
+  }
+
+  if(dx >= 0){
+    incXi = 1;
+  }else{
+    incXi = -1;
+    dx = -dx;
+  }
+
+  // 2 - Incrementos para las secciones con avance recto:
+  if (dx >= dy){
+    incYr = 0;
+    incXr = incXi;
+  }else{
+    incYr = incYi;
+    incXr = 0;
+    // Cuando dy es mayor que dx, se intercambian, para reutilizar el mismo bucle.
+    // ver octantes blancos en la imagen encima del código
+    int k = dx; dx = dy; dy = k;
+  }
+
+  // 3  - Inicializar valores (y de error).
+  int x = x0, y = y0;
+  int avR = (2 * dy);
+  int av = (avR - dx);
+  int avI = (av - dx);
+  int count = 1;
+
+  // 4  - Bucle para el trazado de las línea.
+  do{
+    //std::cout << "\nPunto: "<<x<<", "<<y<<"\n";
+
+    pos = assign_points(gridMap.info.width, gridMap.info.height, x, y);
+    if(dataProb.at(pos-1) != 100) dataProb.at(pos-1) = 0;
+
+    if (av >= 0){
+      x = (x + incXi);     // X aumenta en inclinado.
+      y = (y + incYi);     // Y aumenta en inclinado.
+      av = (av + avI);     // Avance Inclinado
+    }else{
+      x = (x + incXr);     // X aumenta en recto.
+      y = (y + incYr);     // Y aumenta en recto.
+      av = (av + avR);     // Avance Recto
+    }
+  }while((x != x1) || (y != y1));
+
+  pos = assign_points(gridMap.info.width, gridMap.info.height, xini, yini);
+  dataProb.at(pos-1) = 100;
+
+  pos = assign_points(gridMap.info.width, gridMap.info.height, xfin, yfin);
+  dataProb.at(pos-1) = 100;
+  count++;
 
 }
 
