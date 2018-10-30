@@ -26,7 +26,7 @@ nav_msgs::OccupancyGrid gridMap;
 
 int assign_points(uint width, uint height, int fila, int columna);
 void bresenhamLine(int x0, int y0, int x1, int y1, std::vector<int8_t> &dataProb);
-void bresenhamLine_wiki(int x0, int y0, int x1, int y1, std::vector<int8_t> &dataProb);
+void bresenhamLine_wiki(int x0, int y0, int x1, int y1, std::vector<int8_t> &dataProb, int coord_x, int coord_y);
 nav_msgs::OccupancyGrid generate_Grid_Map(nav_msgs::OccupancyGrid gridMap, std::vector<int8_t> dataProb);
 void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg);
 //-------------------------------------------------------------
@@ -167,7 +167,8 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
   double angle_rad = data.angle_min; //angulo minimo en radianes del velodyne (desde donde parte el movimiento de escaneo)
   double angle_degrees = 0.0, dist_x_m = 0.0, dist_y_m = 0.0;
   int posX = 0, posY = 0, pos = 0, len = gridMap.info.height*gridMap.info.width, coord_x = 0, coord_y = 0;
-  //std::vector<signed char> dataProb;
+  int center_x = gridMap.info.height/2;
+  int center_y = gridMap.info.width/2;
   std::vector<int8_t> dataProb;
   dataProb.assign(len,50);
   Point point_v[data.ranges.size()];
@@ -235,59 +236,40 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
   for(int i = 0; i < data.ranges.size(); i++)  
   {
 
-    angle_rad = angle_rad + data.angle_increment;
+    if(i>0) angle_rad = angle_rad + data.angle_increment;
 
-    dist_x_m = data.ranges[i] * cos(angle_rad);
-    dist_y_m = data.ranges[i] * sin(angle_rad);
+    if(data.ranges[i] <= 200)
+    {
+    
+      dist_x_m = data.ranges[i] * cos(angle_rad);
+      dist_y_m = data.ranges[i] * sin(angle_rad);
 
-    coord_x = dist_x_m/gridMap.info.resolution;
-    coord_y = dist_y_m/gridMap.info.resolution;
-
+      coord_x = dist_x_m/gridMap.info.resolution;
+      coord_y = dist_y_m/gridMap.info.resolution;
+    
+    }else{
+      dist_x_m = 250 * cos(angle_rad);
+      dist_y_m = 250 * sin(angle_rad);
+      coord_x = dist_x_m/gridMap.info.resolution;
+      coord_y = dist_y_m/gridMap.info.resolution;
+    }
+    
     angle_degrees = angle_rad*180/PI;
+
+    if((coord_x == -2147483648) && (coord_y == -2147483648)) std::cout << "\ndist_m: ["<<dist_x_m<<", "<<dist_y_m<<"]  "<<"Distancia neta: "<<data.ranges[i]<<"  angulo_rad = "<<angle_rad<<"   angulo_grados = "<<angle_degrees<<"\n" ;
 
     point.setPoint(angle_rad, angle_degrees, data.ranges[i], dist_x_m, dist_y_m, coord_x, coord_y);
     point_v[i] = point;
 
     //Analisis del cuadrante
-    if (abs(coord_x) < gridMap.info.width/2 && abs(coord_y) < gridMap.info.height/2)
-    {
-      int center_x = gridMap.info.height/2;
-      int center_y = gridMap.info.width/2;
-
-      /*
-      if (coord_x >= 0){//Cuadrante 1 o 4
-        if(coord_y >= 0){//Primer Cuadrante 
-
-          posX = gridMap.info.height/2 - coord_y + 1;
-          posY = gridMap.info.width/2 + coord_x;
-
-        }else { //Cuarto cuadrante
-
-          posX = (gridMap.info.height/2 - coord_y);
-          posY = gridMap.info.width/2 + coord_x;
-
-        }
-      }else if(coord_y >= 0){//Cuadrante 2 o 3
-        //Segundo Cuadrante
-
-          posX = gridMap.info.height/2 - coord_y + 1;
-          posY = gridMap.info.width/2 + coord_x ;
-
-      }else{//Tercer Cuadrante
-
-          posX = (gridMap.info.height/2 - coord_y);
-          posY = gridMap.info.width/2 + coord_x ;
-
-      }
-      //*/
+    //if (abs(coord_x) < gridMap.info.width/2 && abs(coord_y) < gridMap.info.height/2)
+    //{
 
       posX = center_x + coord_x;
       posY = center_y + coord_y;
 
       //bresenhamLine(center_x, center_y, posX, posY, dataProb);
-      bresenhamLine_wiki(center_x, center_y, posX, posY, dataProb);
-
-      //bresenhamLine_wiki(center_x, center_y, 75, 75, dataProb);
+      bresenhamLine_wiki(center_x, center_y, posX, posY, dataProb, coord_x, coord_y);
 
             //Cuadrado interno de prueba 
       /*
@@ -309,9 +291,12 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
       bresenhamLine_wiki(center_x, center_y, 30, 25, dataProb);
       //*/
       
-      pos = assign_points(gridMap.info.width, gridMap.info.height, posX, posY);
-      dataProb.at(pos-1) = 100;
-    }
+      if ((abs(coord_x) < gridMap.info.width/2) && (abs(coord_y) < gridMap.info.height/2)){
+        pos = assign_points(gridMap.info.width, gridMap.info.height, posX, posY);
+        dataProb.at(pos-1) = 100;
+      }
+      
+    //}
 
 
   }
@@ -326,9 +311,6 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
 int assign_points(uint width, uint height, int columna, int fila)
 {
   int position = width * (fila) + columna;
-  //int position = width * (height - fila) + columna;//Posicion en el vector desde abajo a la izquierda en el 3er cuadrante  
-  //std::cout<<"position = "<<position<<"\n";
-  //std::cout<<"coord: x = "<<columna<<", y = "<< fila<<"\n";
   return position;
 
 }
@@ -433,7 +415,7 @@ void bresenhamLine(int x0, int y0, int x1, int y1, std::vector<int8_t> &dataProb
 }
 
 //-------------------------------------------------------------
-void bresenhamLine_wiki(int x0, int y0, int x1, int y1, std::vector<int8_t> &dataProb){
+void bresenhamLine_wiki(int x0, int y0, int x1, int y1, std::vector<int8_t> &dataProb, int coord_x, int coord_y){
   int dy = y1-y0; 
   int dx = x1-x0;
   int incXi, incYi, incXr, incYr;
@@ -490,13 +472,17 @@ void bresenhamLine_wiki(int x0, int y0, int x1, int y1, std::vector<int8_t> &dat
       y = (y + incYr);     // Y aumenta en recto.
       av = (av + avR);     // Avance Recto
     }
-  }while((x != x1) || (y != y1));
+
+    //if((x == 25) && (y == 50)) std::cout << "\nPunto: ["<<x1<<", "<<y1<<"]   coordenadas = "<<coord_x<<", "<<coord_y<<"\n";
+
+  }while(((x != x1) || (y != y1)) && (x != gridMap.info.width) && (y != gridMap.info.height) && (x > 0) && (y > 0));
 
   pos = assign_points(gridMap.info.width, gridMap.info.height, xini, yini);
   dataProb.at(pos-1) = 100;
 
-  pos = assign_points(gridMap.info.width, gridMap.info.height, xfin, yfin);
-  dataProb.at(pos-1) = 100;
+  //pos = assign_points(gridMap.info.width, gridMap.info.height, xfin, yfin);
+  //if(pos < (gridMap.info.width*gridMap.info.height)) dataProb.at(pos-1) = 100;
+  
 
 }
 
