@@ -106,7 +106,7 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
 
     if(i>0) angle_rad = angle_rad + data.angle_increment;
 
-    if(data.ranges[i] <= 200)
+    if(data.ranges[i] <= 200) // 200 m es la maxima distancia que nos provee el VLP-16 
     {
     
       dist_x_m = data.ranges[i] * cos(angle_rad);
@@ -115,7 +115,7 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
       coord_x = dist_x_m/gridMap.info.resolution;
       coord_y = dist_y_m/gridMap.info.resolution;
     
-    }else{
+    }else{//Si hay una distancia que tiende a inf, esta se asigna a 250 m que esta fuera del rango del velodyne
       dist_x_m = 250 * cos(angle_rad);
       dist_y_m = 250 * sin(angle_rad);
       coord_x = dist_x_m/gridMap.info.resolution;
