@@ -38,8 +38,8 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
   double angle_rad = data.angle_min; //angulo minimo en radianes del velodyne (desde donde parte el movimiento de escaneo)
   double angle_degrees = 0.0, dist_x_m = 0.0, dist_y_m = 0.0;
   int posX = 0, posY = 0, pos = 0, len = gridMap.info.height*gridMap.info.width, coord_x = 0, coord_y = 0;
-  int center_x = gridMap.info.height/2;
-  int center_y = gridMap.info.width/2;
+  int center_x = gridMap.info.width/2;
+  int center_y = gridMap.info.height/2;
   std::vector<int8_t> dataProb;
   dataProb.assign(len,50);
 
@@ -116,23 +116,29 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
       coord_y = dist_y_m/gridMap.info.resolution;
     
     }else{//Si hay una distancia que tiende a inf, esta se asigna a 250 m que esta fuera del rango del velodyne
+
       dist_x_m = 250 * cos(angle_rad);
       dist_y_m = 250 * sin(angle_rad);
       coord_x = dist_x_m/gridMap.info.resolution;
       coord_y = dist_y_m/gridMap.info.resolution;
+    
     }
     
     angle_degrees = angle_rad*180/PI;    
 
     posX = center_x + coord_x;
     posY = center_y + coord_y;
-
+    std::cout<<"center = ["<<center_x<<", "<<center_y<<"] \n\n";    
+    std::cout<<"Hola1 coord_x = "<<coord_x<<"  coord_y = "<<coord_y<<"  posX = "<<posX<<"  posy = "<<posY<<"  distancia = "<<data.ranges[i]<<"  angulo = "<<angle_degrees<<"  pos = "<<pos<<"\n\n";
     bresenhamLine(center_x, center_y, posX, posY, dataProb);
+    std::cout<<"Hola2 coord_x = "<<coord_x<<"  coord_y = "<<coord_y<<"  posX = "<<posX<<"  posy = "<<posY<<"  distancia = "<<data.ranges[i]<<"  angulo = "<<angle_degrees<<"  pos = "<<pos<<"\n\n";
       
     if ((abs(coord_x) < gridMap.info.width/2) && (abs(coord_y) < gridMap.info.height/2))
-    {
-      pos = assign_points(gridMap.info.width, gridMap.info.height, posX, posY);
+    {      
+      std::cout<<"Chao1 coord_x = "<<coord_x<<"  coord_y = "<<coord_y<<"  posX = "<<posX<<"  posy = "<<posY<<"  distancia = "<<data.ranges[i]<<"  angulo = "<<angle_degrees<<"  pos = "<<pos<<"\n\n";
+      pos = assign_points(gridMap.info.width, gridMap.info.height, posX, posY);      
       dataProb.at(pos) = 100;
+      std::cout<<"Chao2 coord_x = "<<coord_x<<"  coord_y = "<<coord_y<<"  posX = "<<posX<<"  posy = "<<posY<<"  distancia = "<<data.ranges[i]<<"  angulo = "<<angle_degrees<<"  pos = "<<pos<<"\n\n";
     }
 
   }
