@@ -30,6 +30,55 @@ nav_msgs::OccupancyGrid generate_Grid_Map(nav_msgs::OccupancyGrid gridMap, std::
 void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg);
 //-------------------------------------------------------------
 
+class Point_cluster{
+
+private:
+
+int x, y;
+
+public:
+
+Point_cluster();
+~Point_cluster();
+
+void setX(int X);
+void setY(int Y);
+void setPoint_cluster(int X, int Y);
+
+
+int getX();
+int getY();
+};
+
+Point_cluster::Point_cluster(){
+  x = 0;
+  y = 0;
+}
+
+Point_cluster::~Point_cluster(){
+  //Borra objeto
+
+}
+
+void Point_cluster::setX(int X){
+  x = X;
+}
+
+void Point_cluster::setY(int Y){
+  y = Y;
+}
+
+void Point_cluster::setPoint_cluster(int X, int Y){
+  x = X;
+  y = Y;
+}
+
+int Point_cluster::getX(){return x;}
+
+int Point_cluster::getY(){return y;}
+
+
+
 void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
 {
 
@@ -38,6 +87,8 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
   double angle_rad = data.angle_min; //angulo minimo en radianes del velodyne (desde donde parte el movimiento de escaneo)
   double angle_degrees = 0.0, dist_x_m = 0.0, dist_y_m = 0.0;
   int posX = 0, posY = 0, pos = 0, len = gridMap.info.height*gridMap.info.width, coord_x = 0, coord_y = 0;
+  int gridProb[gridMap.info.height][gridMap.info.width];
+  int posImpacMatriz_x[len], posImpacMatriz_y[len], ind = 0;
   int center_x = gridMap.info.width/2;
   int center_y = gridMap.info.height/2;
   std::vector<int8_t> dataProb;
@@ -66,8 +117,7 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
     ROS_INFO(" \n\n I'm receiving from LaserScan: \n\n seq: %d \n stamp: %d \n frame_id: %s \n angle_min: %f \n angle_max: %f \n angle_increment: %f \n time_increment: %f \n scan_time: %f \n range_min: %f \n range_max: %f \n ", 
                                                                                        data.header.seq, data.header.stamp, data.header.frame_id.c_str(), data.angle_min, 
                                                                                        data.angle_max, data.angle_increment, data.time_increment, data.scan_time,
-                                                                                       data.range_min, data.range_max);
-  */
+                                                                                       data.range_min, data.range_max);*/
 
   /*
     *ROS_INFO("ranges: \n");
@@ -98,10 +148,9 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
 
     }
     angle_rad = data.angle_min;
-    std::cout <<"\n" ;
-  */
+    std::cout <<"\n" ;*/
 
-  for(int i = 0; i < data.ranges.size(); i++)  
+  for(int i = 0; i < data.ranges.size(); i++)  //Se rellena la rejilla
   {
 
     if(i>0) angle_rad = angle_rad + data.angle_increment;
@@ -128,23 +177,82 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
 
     posX = center_x + coord_x;
     posY = center_y + coord_y;
-    std::cout<<"center = ["<<center_x<<", "<<center_y<<"] \n\n";    
-    std::cout<<"Hola1 coord_x = "<<coord_x<<"  coord_y = "<<coord_y<<"  posX = "<<posX<<"  posy = "<<posY<<"  distancia = "<<data.ranges[i]<<"  angulo = "<<angle_degrees<<"  pos = "<<pos<<"\n\n";
+    
     bresenhamLine(center_x, center_y, posX, posY, dataProb);
-    std::cout<<"Hola2 coord_x = "<<coord_x<<"  coord_y = "<<coord_y<<"  posX = "<<posX<<"  posy = "<<posY<<"  distancia = "<<data.ranges[i]<<"  angulo = "<<angle_degrees<<"  pos = "<<pos<<"\n\n";
       
     if ((abs(coord_x) < gridMap.info.width/2) && (abs(coord_y) < gridMap.info.height/2))
-    {      
-      std::cout<<"Chao1 coord_x = "<<coord_x<<"  coord_y = "<<coord_y<<"  posX = "<<posX<<"  posy = "<<posY<<"  distancia = "<<data.ranges[i]<<"  angulo = "<<angle_degrees<<"  pos = "<<pos<<"\n\n";
+    { 
+      gridProb[gridMap.info.height - posY][posX] = 1;
+      posImpacMatriz_x[ind] = gridMap.info.height - posY;
+      posImpacMatriz_y[ind] = posX;
+      ind++;            
       pos = assign_points(gridMap.info.width, gridMap.info.height, posX, posY);      
       dataProb.at(pos) = 100;
-      std::cout<<"Chao2 coord_x = "<<coord_x<<"  coord_y = "<<coord_y<<"  posX = "<<posX<<"  posy = "<<posY<<"  distancia = "<<data.ranges[i]<<"  angulo = "<<angle_degrees<<"  pos = "<<pos<<"\n\n";
     }
 
   }
 
+  //Se hace cluster de la rejilla
+  /*
+  int ind_rand = rand() % ind, x, y, x1, y1, eps = 2, minPoints = 3, distancia, count = 0;
+  std::vector<Point_cluster> cluster;
+  //cluster.assign(ind,0);
+  Point_cluster point_v[ind];
+  Point_cluster point;
+  Point_cluster point_core;
+  
+
+  do{
+
+    if(){//Si es la primera vez que entramos o no hay mas vecinos cercanos del point_core
+      x = posImpacMatriz_x[ind_rand];
+      y = posImpacMatriz_y[ind_rand];
+    }else{
+      x = posImpacMatriz_x[i_no_visitado]; //declarar i_no_visitado
+      y = posImpacMatriz_x[i_no_visitado];
+    }
+
+    point_core.x = x;
+    point_core.y = y;
+
+    for(int i = 0; i<ind; i++){
+
+      x1 = posImpacMatriz_x[i];
+      y1 = posImpacMatriz_y[i];
+
+      x = x1 - x;
+      y = y1 - y;
+
+      distancia = sqrt(x*x + y*y);
+
+      if(distancia <= eps)
+      {
+        point.x = x;
+        point.y = y;
+        point_v[count] = point;
+        count++;
+      }
+    
+    }
+    
+    if(count <= minPoints){
+      cluster.push_back(point_core); 
+    }
+
+    //Marcar que point_core fue visitado para no volver a visitarlo
+    //Volver a iterar con los vecinos de point_core ---> point_v[] y asi sucesivamente e ir marcando que fueron visitados
+
+  }while();//Mientras que no hayan sido visitados todos los puntos
+
+
+  /*for(int i; i<gridMap.info.height; i++){
+    for(int j; j<gridMap.info.width; j++){
+
+    }
+  }*/
+
   gridMap_pub = generate_Grid_Map(gridMap, dataProb);
-  map_pub.publish(gridMap_pub);
+  map_pub.publish(gridMap_pub); //Se publica la rejilla
 
 }
 
