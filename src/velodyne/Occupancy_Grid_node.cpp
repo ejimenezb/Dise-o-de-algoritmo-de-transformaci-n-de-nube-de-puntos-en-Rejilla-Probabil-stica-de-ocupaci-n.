@@ -17,7 +17,7 @@
 #include <sstream> // for std::stringstream
 
 #define PI 3.14159274101
-
+//#define GetSize(array_enteros) (sizeof(array_enteros)/sizeof(*(array_enteros)))
 
 ros::Publisher map_pub;
 ros::Subscriber sub;
@@ -34,7 +34,7 @@ class Point_cluster{
 
 private:
 
-int x, y;
+int x, y, id;
 
 public:
 
@@ -43,16 +43,19 @@ Point_cluster();
 
 void setX(int X);
 void setY(int Y);
-void setPoint_cluster(int X, int Y);
+void setId(int ID);
+void setPoint_cluster(int X, int Y, int ID);
 
 
 int getX();
 int getY();
+int getID();
 };
 
 Point_cluster::Point_cluster(){
   x = 0;
   y = 0;
+  id = 0;
 }
 
 Point_cluster::~Point_cluster(){
@@ -68,14 +71,21 @@ void Point_cluster::setY(int Y){
   y = Y;
 }
 
-void Point_cluster::setPoint_cluster(int X, int Y){
+void Point_cluster::setId(int ID){
+  id = ID;// id = 0 por default (no ha sido visitado), id = -1 es ruido, id > 0 pertenece a un grupo. Todos los puntos que pertenezcan a un mismo grupo tendran el mismo "id"
+}
+
+void Point_cluster::setPoint_cluster(int X, int Y, int ID){
   x = X;
   y = Y;
+  id = ID;
 }
 
 int Point_cluster::getX(){return x;}
 
 int Point_cluster::getY(){return y;}
+
+int Point_cluster::getID(){return id;}
 
 
 
@@ -87,8 +97,15 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
   double angle_rad = data.angle_min; //angulo minimo en radianes del velodyne (desde donde parte el movimiento de escaneo)
   double angle_degrees = 0.0, dist_x_m = 0.0, dist_y_m = 0.0;
   int posX = 0, posY = 0, pos = 0, len = gridMap.info.height*gridMap.info.width, coord_x = 0, coord_y = 0;
-  int gridProb[gridMap.info.height][gridMap.info.width];
-  int posImpacMatriz_x[len], posImpacMatriz_y[len], ind = 0;
+  //int gridProb[gridMap.info.height][gridMap.info.width];
+  //int posImpacMatriz_x[len], posImpacMatriz_y[len];
+  int ind = 0;
+  Point_cluster pointOccupied;
+  //std::vector<Point_cluster> point_occupied;
+  //point_occupied.assign(1,pointOccupied);
+  Point_cluster *point_occupied = NULL;
+
+  //Point_cluster pointOccupied;
   int center_x = gridMap.info.width/2;
   int center_y = gridMap.info.height/2;
   std::vector<int8_t> dataProb;
@@ -182,38 +199,58 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
       
     if ((abs(coord_x) < gridMap.info.width/2) && (abs(coord_y) < gridMap.info.height/2))
     { 
-      gridProb[gridMap.info.height - posY][posX] = 1;
+      pointOccupied.setX(gridMap.info.height - posY);
+      pointOccupied.setY(posX);
+      
+      /*if (point_occupied.size() == 1)
+      {
+        point_occupied.at(0) = pointOccupied;
+      }else point_occupied.push_back(pointOccupied);
+      int size = sizeof(pointOccupied);
+      */
+      int size = sizeof(Point_cluster);
+      point_occupied = (Point_cluster*)realloc(point_occupied,  (ind + 1) * size);
+      point_occupied[ind] = pointOccupied;
+
+      /*
+      //gridProb[gridMap.info.height - posY][posX] = 1;
       posImpacMatriz_x[ind] = gridMap.info.height - posY;
       posImpacMatriz_y[ind] = posX;
-      ind++;            
+      */ 
+      ind++;   
+
       pos = assign_points(gridMap.info.width, gridMap.info.height, posX, posY);      
       dataProb.at(pos) = 100;
+
+      //std::cout<<"tamaño de occupied points: "<<point_occupied<<"\n\n";
     }
 
   }
 
   //Se hace cluster de la rejilla
-  /*
-  int ind_rand = rand() % ind, x, y, x1, y1, eps = 2, minPoints = 3, distancia, count = 0;
-  std::vector<Point_cluster> cluster;
-  //cluster.assign(ind,0);
-  Point_cluster point_v[ind];
-  Point_cluster point;
-  Point_cluster point_core;
+  //*
+  //std::cout<<"tamaño de occupied points: "<<point_occupied<<"\n\n";
   
-
+  int ind_rand = rand() % ind, x, y, x1, y1, id, eps = 2, minPoints = 3, distancia, count = 0;
+  Point_cluster pointCluster;
+  Point_cluster point_core;
+  //std::vector<Point_cluster> point_cluster;
+  //point_cluster.assign(1,pointCluster);
+  //Point_cluster point_cluster[ind];
+  
+/*
   do{
 
     if(){//Si es la primera vez que entramos o no hay mas vecinos cercanos del point_core
-      x = posImpacMatriz_x[ind_rand];
-      y = posImpacMatriz_y[ind_rand];
+      x = point_occupied.at(ind_rand).getX();
+      y = point_occupied.at(ind_rand).getY();
     }else{
       x = posImpacMatriz_x[i_no_visitado]; //declarar i_no_visitado
       y = posImpacMatriz_x[i_no_visitado];
     }
 
-    point_core.x = x;
-    point_core.y = y;
+    point_core.setX(x) = x;
+    point_core.setY(y) = y;
 
     for(int i = 0; i<ind; i++){
 
@@ -229,7 +266,7 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
       {
         point.x = x;
         point.y = y;
-        point_v[count] = point;
+        point_cluster[count] = pointCluster;
         count++;
       }
     
@@ -240,7 +277,8 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
     }
 
     //Marcar que point_core fue visitado para no volver a visitarlo
-    //Volver a iterar con los vecinos de point_core ---> point_v[] y asi sucesivamente e ir marcando que fueron visitados
+    point_core.setId(id);
+    //Volver a iterar con los vecinos de point_core ---> point_cluster[] y asi sucesivamente e ir marcando que fueron visitados
 
   }while();//Mientras que no hayan sido visitados todos los puntos
 
