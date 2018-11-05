@@ -32,6 +32,10 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg);
 
 class Point_cluster{
 
+public:
+
+int ind_1, ind_2, vecino;
+
 private:
 
 int x, y, id;
@@ -49,7 +53,7 @@ void setPoint_cluster(int X, int Y, int ID);
 
 int getX();
 int getY();
-int getID();
+int getId();
 };
 
 Point_cluster::Point_cluster(){
@@ -85,7 +89,7 @@ int Point_cluster::getX(){return x;}
 
 int Point_cluster::getY(){return y;}
 
-int Point_cluster::getID(){return id;}
+int Point_cluster::getId(){return id;}
 
 
 
@@ -208,9 +212,10 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
       }else point_occupied.push_back(pointOccupied);
       int size = sizeof(pointOccupied);
       */
-      int size = sizeof(Point_cluster);
-      point_occupied = (Point_cluster*)realloc(point_occupied,  (ind + 1) * size);
+      //int size = sizeof(Point_cluster);
+      point_occupied = (Point_cluster*)realloc(point_occupied,  (ind + 1) * sizeof(Point_cluster));
       point_occupied[ind] = pointOccupied;
+      point_occupied[ind].ind_1 = ind;
 
       /*
       //gridProb[gridMap.info.height - posY][posX] = 1;
@@ -231,56 +236,161 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
   //*
   //std::cout<<"tamaño de occupied points: "<<point_occupied<<"\n\n";
   
-  int ind_rand = rand() % ind, x, y, x1, y1, id, eps = 2, minPoints = 3, distancia, count = 0;
+  int i_, x, y, x1, y1, id, eps = 2, minPoints = 3, distancia, count = 0, count_cluster = 0, count_neighbors = 0, count_sub_neighbors = 0, visitado = 0;
+  Point_cluster *point_cluster = NULL;
+  Point_cluster *point_neighbors = NULL;
+  Point_cluster *point_sub_neighbors = NULL;
   Point_cluster pointCluster;
   Point_cluster point_core;
+  Point_cluster next_cluster;
   //std::vector<Point_cluster> point_cluster;
   //point_cluster.assign(1,pointCluster);
-  //Point_cluster point_cluster[ind];
   
-/*
+//*
+
+  i_ = rand() % ind;
+  //x = point_occupied[i_].getX();
+  //y = point_occupied[i_].getY();
+  //point_occupied[i_].setId(1);
+  point_core = point_occupied[i_]; // next_cluster permanece en 0 en la primera corrida
+    
+  
+  //*
   do{
+    if(point_core.getId() == 0)//(next_cluster.getId() == 0)
+    {
+      point_neighbors = (Point_cluster*)realloc(point_neighbors,  (count_neighbors + 1) * sizeof(Point_cluster));
+      point_neighbors[count_neighbors] = point_core;
+      x = point_core.getX();
+      y = point_core.getY();
+      count_neighbors++;
+      visitado++;
 
-    if(){//Si es la primera vez que entramos o no hay mas vecinos cercanos del point_core
-      x = point_occupied.at(ind_rand).getX();
-      y = point_occupied.at(ind_rand).getY();
-    }else{
-      x = posImpacMatriz_x[i_no_visitado]; //declarar i_no_visitado
-      y = posImpacMatriz_x[i_no_visitado];
-    }
+      for(int i = 0; i < ind; i++){//RegionQuery
 
-    point_core.setX(x) = x;
-    point_core.setY(y) = y;
+        //if(point_occupied[i].getId() == 0)
+        //{
+          x1 = point_occupied[i].getX();
+          y1 = point_occupied[i].getY();
+          //point_occupied[i].setId(1);
 
-    for(int i = 0; i<ind; i++){
+          x = x1 - x;
+          y = y1 - y;
 
-      x1 = posImpacMatriz_x[i];
-      y1 = posImpacMatriz_y[i];
+          distancia = sqrt(x*x + y*y);
 
-      x = x1 - x;
-      y = y1 - y;
-
-      distancia = sqrt(x*x + y*y);
-
-      if(distancia <= eps)
+          if(distancia <= eps)
+          {
+            point_neighbors = (Point_cluster*)realloc(point_neighbors,  (count_neighbors + 1) * sizeof(Point_cluster));
+            point_neighbors[count_neighbors] = point_occupied[i];
+            //point_occupied[i].ind_2 = count_neighbors;
+            count_neighbors++;
+          }
+        //}
+      }//fin RegionQuery
+      
+      if(count_neighbors >= minPoints)
       {
-        point.x = x;
-        point.y = y;
-        point_cluster[count] = pointCluster;
-        count++;
+        //cluster.push_back(point_core); 
+        point_cluster = (Point_cluster*)realloc(point_cluster,  (count_cluster + 1) * sizeof(Point_cluster));
+        point_cluster[count_cluster] = point_core;
+        count_cluster++;
+
+        point_occupied[point_core.ind_1].setId(1);
+        
+        //next_cluster = point_core;
+
+        //x = next_cluster.getX();
+        //y = next_cluster.getY();
+      
+        //Volver a iterar con los vecinos de point_core ---> point_neighbors[] y asi sucesivamente e ir marcando que fueron visitados
+      
+        //VAMOS A ITERAR
+
+        for(int k = 0; k < count_neighbors; k++)
+        {
+          if(point_neighbors[k].getId() == 0)
+          {
+            //point_core = point_neighbors[k];
+            //x = point_core.getX();
+            //y = point_core.getY();
+
+            next_cluster = point_neighbors[k];
+            x = next_cluster.getX();
+            y = next_cluster.getY();
+
+            //point_neighbors[k].setId(1);//Evaluar si se cambia de lugar!!!!!!!!!!!!!!!!!!!!!!!!! 
+            //point_occupied[point_neighbors[k].ind_1].setId(1);
+            point_occupied[point_neighbors[k].ind_1].vecino = 1;
+            visitado++;
+
+            for(int j = 0; j < ind; j++){//RegionQuery
+
+              //if(point_occupied[j].getId() == 0)
+              //{
+                x1 = point_occupied[j].getX();
+                y1 = point_occupied[j].getY();
+                //point_occupied[i].setId(1);
+
+                x = x1 - x;
+                y = y1 - y;
+
+                distancia = sqrt(x*x + y*y);
+
+                if(distancia <= eps)
+                {
+                  point_sub_neighbors = (Point_cluster*)realloc(point_sub_neighbors,  (count_sub_neighbors + 1) * sizeof(Point_cluster));
+                  point_sub_neighbors[count_sub_neighbors] = point_occupied[j];
+                  count_sub_neighbors++;
+                }
+              //}
+            }//fin RegionQuery
+
+            if(count_sub_neighbors >= minPoints)
+            {
+              for(int j = 0; j < count_sub_neighbors; j++) //Union de arrglos de vecinos
+              {
+                if(point_sub_neighbors[j].vecino != 1)
+                {
+                  point_neighbors = (Point_cluster*)realloc(point_neighbors,  (count_neighbors + 1) * sizeof(Point_cluster));
+                  point_neighbors[count_neighbors] = point_sub_neighbors[j];
+                  //point_occupied[i].ind_2 = count_neighbors;
+                  count_neighbors++;
+                }
+              }
+              
+              //point_occupied
+              point_occupied[point_neighbors[k].ind_1].setId(1);
+              point_neighbors[k].setId(1);
+              point_cluster = (Point_cluster*)realloc(point_cluster,  (count_cluster + 1) * sizeof(Point_cluster));
+              point_cluster[count_cluster] = next_cluster;
+              count_cluster++;
+            
+            }//else{//si no tiene minPoints se marca como ruido?... el algoritmo no lo tiene previsto!!!!!!!!!!!!!!!!!!!!!!!!!!
+              //point_occupied[point_neighbors[k].ind_1].setId(-1);
+            //}            
+          
+          }
+        }
+
+
+      }else
+      { 
+        point_occupied[point_core.ind_1].setId(-1);
+        //Se podria declarar y llenar un arreglo de puntos ruido
       }
-    
-    }
-    
-    if(count <= minPoints){
-      cluster.push_back(point_core); 
-    }
 
-    //Marcar que point_core fue visitado para no volver a visitarlo
-    point_core.setId(id);
-    //Volver a iterar con los vecinos de point_core ---> point_cluster[] y asi sucesivamente e ir marcando que fueron visitados
 
-  }while();//Mientras que no hayan sido visitados todos los puntos
+    }else
+    {
+      i_ = rand() % ind;
+      //x = point_occupied[i_].getX();
+      //y = point_occupied[i_].getY();
+      //point_occupied[i_].setId(1);
+      point_core = point_occupied[i_];
+      //next_cluster = point_core;
+    }
+  }while(visitado < ind);//Mientras que no hayan sido visitados todos los puntos
 
 
   /*for(int i; i<gridMap.info.height; i++){
@@ -293,7 +403,31 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
   map_pub.publish(gridMap_pub); //Se publica la rejilla
 
 }
+/*
+  DBSCAN(D, eps, MinPts)
+     C = 0
+     for each unvisited point P in dataset D
+        mark P as visited
+        NeighborPts = regionQuery(P, eps)
+        if sizeof(NeighborPts) < MinPts
+           mark P as NOISE
+        else
+           C = next cluster
+           expandCluster(P, NeighborPts, C, eps, MinPts)
 
+  expandCluster(P, NeighborPts, C, eps, MinPts)
+     add P to cluster C
+     for each point P' in NeighborPts
+        if P' is not visited
+           mark P' as visited
+           NeighborPts' = regionQuery(P', eps)
+           if sizeof(NeighborPts') >= MinPts
+              NeighborPts = NeighborPts joined with NeighborPts'
+        if P' is not yet member of any cluster
+           add P' to cluster C
+
+  regionQuery(P, eps)
+     return all points within P's eps-neighborhood (including P)*/
 //-------------------------------------------------------------
 
 int assign_points(uint width, uint height, int columna, int fila)
