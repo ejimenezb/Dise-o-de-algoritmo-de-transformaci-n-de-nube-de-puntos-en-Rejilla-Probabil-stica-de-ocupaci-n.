@@ -20,12 +20,13 @@
 //#define GetSize(array_enteros) (sizeof(array_enteros)/sizeof(*(array_enteros)))
 
 ros::Publisher map_pub;
-//ros::Publisher map_pub_cluster;
+ros::Publisher map_pub_cluster;
 ros::Subscriber sub;
 
 nav_msgs::OccupancyGrid gridMap;
 
 int assign_points(uint width, uint height, int fila, int columna);
+std::vector<int> assign_coord(uint width, uint height, int position);
 void bresenhamLine(int x0, int y0, int x1, int y1, std::vector<int8_t> &dataProb);
 nav_msgs::OccupancyGrid generate_Grid_Map(nav_msgs::OccupancyGrid gridMap, std::vector<int8_t> dataProb);
 void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg);
@@ -96,9 +97,9 @@ int Point_cluster::getY(){return y;}
 int Point_cluster::getId(){return id;}
 
 //DBSCAN necesita del Point_cluster que esta declarado anteiormente
-void DBSCAN(std::vector<Point_cluster> point_occupied, int eps, int minPoints, std::vector<int8_t> &dataProb);
-void expandCluster(std::vector<Point_cluster> &point_occupied, Point_cluster point_core, int eps, int C, int minPoints, std::vector<Point_cluster> &point_neighbors);
-std::vector<Point_cluster> regionQuery(std::vector<Point_cluster> &point_occupied, Point_cluster point_core, int eps);
+void DBSCAN(std::vector<Point_cluster> point_occupied, float eps, int minPoints, std::vector<int8_t> dataProb);
+void expandCluster(std::vector<Point_cluster> &point_occupied, Point_cluster point_core, float eps, int C, int minPoints, std::vector<Point_cluster> &point_neighbors);
+std::vector<Point_cluster> regionQuery(std::vector<Point_cluster> &point_occupied, Point_cluster point_core, float eps);
 
 
 void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
@@ -112,7 +113,9 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
   int center_x = gridMap.info.width/2;
   int center_y = gridMap.info.height/2;
 
-  int ind = 0, eps = 3, minPoints = 3;
+  int ind = 0, minPoints = 3;
+  float eps = sqrt(2);
+
   Point_cluster pointOccupied;
   std::vector<Point_cluster> point_occupied;
   
@@ -212,12 +215,14 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
       
     if ((abs(coord_x) < gridMap.info.width/2) && (abs(coord_y) < gridMap.info.height/2))
     { 
-      pointOccupied.setX(posX);//(gridMap.info.height - posY);
-      pointOccupied.setY(posY);//(posX);
+      //pointOccupied.setX(posX);//(gridMap.info.height - posY);
+      //pointOccupied.setY(posY);//(posX);
       
       //Vectores
-      pointOccupied.ind_1 = ind;
-      point_occupied.push_back(pointOccupied);
+      //pointOccupied.ind_1 = ind;
+      //point_occupied.push_back(pointOccupied);
+      
+      //std::cout << "point_occupied = " << point_occupied.at(ind).ind_1 <<", ind = "<<ind<< "\n\n";
       
       /* 
         //Arreglos dinamicos
@@ -225,7 +230,7 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
         point_occupied[ind] = pointOccupied;
         point_occupied[ind].ind_1 = ind;*/
  
-      ind++;   
+      //ind++;   
 
       pos = assign_points(gridMap.info.width, gridMap.info.height, posX, posY);      
       dataProb.at(pos) = 100;
@@ -233,8 +238,29 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
 
   }
 
-  //------------------      CLUSTER        ---------------------------------------------
+  std::vector<int> coord;
   
+  for(int pos = 0; pos < dataProb.size(); pos++)
+  {
+    if(dataProb.at(pos) == 100)
+    {
+      coord = assign_coord(gridMap.info.width, gridMap.info.height, pos);
+      posX = coord.at(0);
+      posY = coord.at(1);
+      pointOccupied.setX(posX);
+      pointOccupied.setY(posY);
+      pointOccupied.ind_1 = ind;
+      point_occupied.push_back(pointOccupied);
+      ind++;
+    }
+  }
+
+  //------------------      CLUSTER        ---------------------------------------------
+  for(int i = 0; i < point_occupied.size(); i++)
+  {
+    std::cout<<"["<<point_occupied.at(i).getX()<<","<<point_occupied.at(i).getY()<<"],  ";
+  }
+
   DBSCAN(point_occupied, eps, minPoints, dataProb);
   /* 
     int i_, x, y, x1, y1, id, eps = 2, minPoints = 3, distancia, count_cluster = 0, count_neighbors = 0, count_sub_neighbors = 0, visitado = 0;
@@ -489,9 +515,10 @@ void laserScancallback(const sensor_msgs::LaserScan::ConstPtr& msg)
 
   regionQuery(P, eps)
      return all points within P's eps-neighborhood (including P)*/
-void DBSCAN(std::vector<Point_cluster> point_occupied, int eps, int minPoints, std::vector<int8_t> &dataProb)
+void DBSCAN(std::vector<Point_cluster> point_occupied, float eps, int minPoints, std::vector<int8_t> dataProb)
 { 
-  /*
+  
+  //*
     nav_msgs::OccupancyGrid gridMap_pub;//*/
   
   int C = 0, i_ = 0;
@@ -499,35 +526,43 @@ void DBSCAN(std::vector<Point_cluster> point_occupied, int eps, int minPoints, s
   //Vectores 
   std::vector<Point_cluster> point_neighbors;
   Point_cluster point_core;
-  i_ = rand() % point_occupied.size();
-  point_core = point_occupied.at(i_);
+  //i_ = rand() % point_occupied.size();
+  //point_core = point_occupied.at(i_);
+
+  std::cout << "Tamaño ocupados = " << point_occupied.size() << " eps = " << eps << " minPts = " << minPoints << "\n\n";
 
   for(int i = 0; i < point_occupied.size(); i++)
   {
-    if(point_core.visitado == 0)//(point_core.getId() == 0)
+    if(point_occupied.at(i).visitado == 0)//(point_core.visitado == 0)//(point_core.getId() == 0)
     {
+      point_core = point_occupied.at(i);
       point_core.visitado = 1;
-      point_occupied.at(point_core.ind_1).visitado = 1;
+      point_occupied.at(i).visitado = 1;
 
       point_neighbors = regionQuery(point_occupied, point_core, eps);
-
+      //std::cout << "Entrada con ind de occu = " << point_occupied.at(i).ind_1 <<", i = "<< i << "\n\n";
+      std::cout << "tamaño vecinos = " << point_neighbors.size() << "\n\n";
+      
       if(point_neighbors.size() < minPoints)
       {
         //Ruido
         point_core.setId(-1);
-        point_occupied.at(point_core.ind_1).setId(-1);
+        point_occupied.at(i).setId(-1);
       }else
       {
         C = C + 1;
+        
+        std::cout << "C = " << C << "\n\n";
+        
         expandCluster(point_occupied, point_core, eps, C, minPoints, point_neighbors);
       }
 
     }
   }
 
-  /*
+  //*
     //Rellenar la rejilla (CICLAR)
-    int cluster = 1, posX, posY, pos;
+    int cluster = 0, posX, posY, pos;
     for(int i = 0; i < point_occupied.size(); i++)
     {
       if(point_occupied.at(i).getId() == cluster)
@@ -544,9 +579,10 @@ void DBSCAN(std::vector<Point_cluster> point_occupied, int eps, int minPoints, s
     map_pub_cluster.publish(gridMap_pub); //Se publica la rejilla*/
 }
 
-std::vector<Point_cluster> regionQuery(std::vector<Point_cluster> &point_occupied, Point_cluster point_core, int eps)
+std::vector<Point_cluster> regionQuery(std::vector<Point_cluster> &point_occupied, Point_cluster point_core, float eps)
 {     
-  int distancia = 0, x, y, x1, y1;
+  float distancia = 0;
+  int x, y, x1, y1;
   //Vectores
   std::vector<Point_cluster> point_neighbors;
   //point_neighbors.push_back(point_core);
@@ -568,13 +604,16 @@ std::vector<Point_cluster> regionQuery(std::vector<Point_cluster> &point_occupie
     if(distancia <= eps)
     {
       //Vectores
-      point_neighbors.push_back(point_core);
-    }     
+      point_neighbors.push_back(point_occupied.at(i));//estaba point_core lo cual no tiene sentido
+      std::cout << "Posiciones = [" << point_occupied.at(i).getX() <<", "<<point_occupied.at(i).getY()<< "] ind = "<< point_occupied.at(i).ind_1 <<"\n\n";
+    }
+
+    if(point_occupied.size() == (i+1)) std::cout <<point_occupied.at(point_occupied.size()).visitado << "\n\n";     
   }
   return point_neighbors;
 }
 
-void expandCluster(std::vector<Point_cluster> &point_occupied, Point_cluster point_core, int eps, int C, int minPoints, std::vector<Point_cluster> &point_neighbors)
+void expandCluster(std::vector<Point_cluster> &point_occupied, Point_cluster point_core, float eps, int C, int minPoints, std::vector<Point_cluster> &point_neighbors)
 {
   std::vector<Point_cluster> point_sub_neighbors;
   //std::vector<Point_cluster> point_cluster;
@@ -583,14 +622,21 @@ void expandCluster(std::vector<Point_cluster> &point_occupied, Point_cluster poi
   point_occupied.at(point_core.ind_1).setId(C);
   //point_cluster.push_back(point_core);
 
+  std::cout << "tamaño vecinos_expand_cluster = " << point_neighbors.size() << "\n\n";
+
   for(int k = 0; k < point_neighbors.size(); k++)
-  {
+  { 
+    //std::cout <<"Id: " << point_neighbors.at(k).getId() << ", ind = " <<point_neighbors.at(k).ind_1<< ", Visitado "<< k <<" = " << point_neighbors.at(k).visitado << "\n\n";
+    //std::cout << "Posiciones = [" << point_neighbors.at(k).getX() <<", "<<point_neighbors.at(k).getY()<< "] \n\n";
+    if(point_neighbors.size() == (k+1)) std::cout << "Visitado "<< k <<" = " << point_neighbors.at(point_neighbors.size()).visitado << "\n\n";
+    
     if(point_neighbors.at(k).visitado == 0)//(point_neighbors.at(k).getId() == 0)
-    {
+    { 
       point_neighbors.at(k).visitado = 1;
       point_occupied.at(point_neighbors.at(k).ind_1).visitado = 1;
 
       point_sub_neighbors = regionQuery(point_occupied, point_neighbors.at(k), eps);
+      //std::cout << "tamaño sub vecinos = " << point_sub_neighbors.size() << "\n\n";
 
       if(point_sub_neighbors.size() >= minPoints)
       {
@@ -600,6 +646,9 @@ void expandCluster(std::vector<Point_cluster> &point_occupied, Point_cluster poi
           point_neighbors.push_back(point_sub_neighbors.at(j));
         }
         //point_cluster.push_back(point_sub_neighbors.at(j));
+        
+        //point_neighbors.at(k).setId(C);
+        //point_occupied.at(point_neighbors.at(k).ind_1).setId(C);
       }
     }
 
@@ -609,14 +658,29 @@ void expandCluster(std::vector<Point_cluster> &point_occupied, Point_cluster poi
       point_occupied.at(point_neighbors.at(k).ind_1).setId(C);
     }
   }
+  //std::cout << "tamaño vecinos_expand_cluster_2 = " << point_neighbors.size() << "\n\n";
 }
 //-------------------------------------------------------------
 
-int assign_points(uint width, uint height, int columna, int fila)
+int assign_points(uint width, uint height, int columna, int fila)//x,y
 {
   int position = width * (fila) + columna;
   return position;
 
+}
+
+std::vector<int> assign_coord(uint width, uint height, int position)
+{
+  std::vector<int> coord;
+  int posX, posY;
+
+  posY = position/height; //posY = (position - columna)/width;
+  posX = position - width * (posY);
+
+  coord.push_back(posX);
+  coord.push_back(posY);
+
+  return coord;
 }
 
 //-------------------------------------------------------------
@@ -766,7 +830,7 @@ int main(int argc, char *argv[])
   ros::NodeHandle n;
 
   map_pub = n.advertise<nav_msgs::OccupancyGrid>("map",10); //PUBLICAR
-  //map_pub_cluster = n.advertise<nav_msgs::OccupancyGrid>("map_cluster",10); //PUBLICAR
+  map_pub_cluster = n.advertise<nav_msgs::OccupancyGrid>("map_cluster",10); //PUBLICAR
 
   sub = n.subscribe("scan", 1000, laserScancallback); //SUBSCRIBIRSE
 
